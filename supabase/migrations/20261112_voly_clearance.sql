@@ -36,20 +36,27 @@ drop policy if exists mentor_clearances_delete on public.mentor_clearances;
 create policy mentor_clearances_delete on public.mentor_clearances
 for delete to authenticated using ((select public.is_admin()));
 
--- Public volunteer directory: approval AND current school-confirmed clearance required.
--- The view deliberately exposes public profile fields only; never clearance records.
-create or replace view public.cleared_volunteer_profiles
-with (security_barrier = true) as
-select v.id, v.full_name, v.major, v.year, v.bio, v.experience,
-  v.goals, v.skills, v.availability, v.topics, v.avatar_url,
-  v.status, v.created_at, v.updated_at
-from public.volunteer_profiles v
-join public.mentor_clearances c on c.mentor_id = v.id
-where v.status = 'approved'
-  and c.valid_until >= current_date;
+-- Expose a boolean only, not the underlying verification record.
+-- SECURITY DEFINER lets public visitors check eligibility without reading sensitive admin rows.
+create or replace function public.is_mentor_cleared(mentor uuid)
+returns boolean language sql stable security definer set search_path = ''
+as $$
+  select exists (
+    select 1 from public.mentor_clearances c
+    where c.mentor_id = mentor and c.valid_until >= current_date
+  );
+$$;
+revoke all on function public.is_mentor_cleared(uuid) from public;
+grant execute on function public.is_mentor_cleared(uuid) to anon, authenticated;
 
-revoke all on public.cleared_volunteer_profiles from public;
-grant select on public.cleared_volunteer_profiles to anon, authenticated;
+-- Restrict ALL public profile access (including direct REST queries), not only the UI.
+drop policy if exists volunteer_read on public.volunteer_profiles;
+create policy volunteer_read on public.volunteer_profiles for select to anon,authenticated
+using (
+ (status = 'approved' and (select public.is_mentor_cleared(id)))
+ or id = (select auth.uid())
+ or (select public.is_admin())
+);
 
 -- In addition to existing adult-consent and approved-profile checks,
 -- requests must now refer to a profile with current VOLY clearance.
@@ -58,9 +65,8 @@ create policy request_submit on public.mentorship_requests for insert to anon,au
 with check (status='pending' and admin_notes='' and adult_confirmed=true and
   exists (
     select 1 from public.volunteer_profiles p
-    join public.mentor_clearances c on c.mentor_id = p.id
     where p.id = mentor_id and p.status = 'approved'
-      and c.valid_until >= current_date
+      and public.is_mentor_cleared(p.id)
   ));
 
 -- Note: the existing requests table is unchanged; existing requests are preserved.
