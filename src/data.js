@@ -9,4 +9,4 @@ export const sampleMentors = [
 ]
 export const defaultSettings = {hero_title:'Your future has a cheering section.', hero_subtitle:'Real questions. Real guidance. Real people in your corner. Find a college student mentor who remembers what it’s like to be right where you are.',mission:'We believe guidance should never depend on your ZIP code or who you happen to know. Hook’Em Helpers helps young students discover approachable college volunteers ready to share what they’ve learned.',announcement:''}
 export const makeInitials = name => String(name||'?').split(/\s+/).filter(Boolean).slice(0,2).map(s=>s[0]?.toUpperCase()).join('') || '?'
-export const friendlyError = err => err?.message || 'Something went wrong. Please try again.'
+export const friendlyError = err => {const message=err?.message||'Something went wrong. Please try again.';if(/failed to fetch|networkerror|network request failed|load failed|fetch failed/i.test(message))return 'Cannot reach the Supabase service. Check that the Supabase project is active and that Vercel has the correct VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY. This is a connection error, not an incorrect password.';return message}
