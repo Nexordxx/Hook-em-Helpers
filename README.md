@@ -38,7 +38,7 @@ Visit `http://localhost:5173`. Without environment variables, you'll see the fic
 
 **1 — Create a Supabase project:** Open https://supabase.com/dashboard, create a project in an appropriate region, and save the project URL and *publishable/anon* browser key (Settings → API Keys). In the **SQL Editor**, paste and run the entire [`supabase/schema.sql`](supabase/schema.sql) file. This sets up tables, policies and buckets.
 
-**2 — Configure authentication:** In Supabase Authentication → Providers, enable Email. For volunteers, email confirmation is recommended. Under Authentication → URL Configuration, add your site's `https://YOUR-PROJECT.vercel.app` as Site URL and approved redirect URLs. Test signup confirmation. Volunteers must authenticate using an official `utexas.edu` or its subdomain email for database-level profile creation (admins are bootstrapped separately).
+**2 — Configure authentication:** In Supabase Authentication → Providers, enable Email. For volunteers, email confirmation is recommended. Under Authentication → URL Configuration, add your site's `https://YOUR-PROJECT.vercel.app` as Site URL and approved redirect URLs. Test signup confirmation. Volunteers can sign up using any valid email address. Profile creation still requires authentication and remains pending until administrator approval. For existing Supabase installations, apply [`supabase/migrations/20261117_allow_all_email_domains.sql`](supabase/migrations/20261117_allow_all_email_domains.sql) before testing non-UT profile creation.
 
 **3 — Configure environment variables:** Copy `.env.example` to `.env.local` and enter your values:
 
@@ -51,7 +51,7 @@ VITE_SUPABASE_ANON_KEY=YOUR_PUBLISHABLE_OR_ANON_KEY
 
 Restart `npm run dev` to switch into live mode.
 
-**4 — Create the super administrator:** Create and confirm an account using the live `/signup` page with a UT email (or, for a non-UT admin, create the account in Supabase Authentication dashboard). Then in Supabase SQL Editor run the **admin bootstrap** SQL at the bottom of `supabase/schema.sql`, replacing the placeholder with the *exact email* you own. Verify one row was affected. Sign out/in. Your admin account can now use `/admin`. The admin role comes from a database table that ordinary users cannot write to.
+**4 — Create the super administrator:** Create and confirm an account using the live `/signup` page with any valid email address. Then in Supabase SQL Editor run the **admin bootstrap** SQL at the bottom of `supabase/schema.sql`, replacing the placeholder with the *exact email* you own. Verify one row was affected. Sign out/in. Your admin account can now use `/admin`. The admin role comes from a database table that ordinary users cannot write to.
 
 **5 — Host on Vercel:** Create a GitHub repository containing the project files (exclude `.env.local`, `node_modules`, and `dist`). Import that repository at https://vercel.com/new, select Vite, set the build command `npm run build` and output directory `dist`. Set both `VITE_SUPABASE_*` environment variables in Vercel project settings, and deploy. The included `vercel.json` enables client-side route refreshes.
 
