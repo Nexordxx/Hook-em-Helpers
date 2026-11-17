@@ -1,7 +1,7 @@
--- Hook'Em Helpers: VOLY clearance integration (manual school confirmation)
+-- Hook'Em Helpers: VOLY clearance integration (manual independent district confirmation)
 -- Apply in Supabase SQL Editor BEFORE deploying the feature branch.
 -- No criminal history, DOB, ID or background-check documents are stored here.
--- Only an existing administrator may record or revoke an independently confirmed clearance.
+-- Only an existing administrator may record or revoke an independently confirmed district clearance.
 
 create table if not exists public.mentor_clearances (
   mentor_id uuid primary key references public.volunteer_profiles(id) on delete cascade,
@@ -9,7 +9,7 @@ create table if not exists public.mentor_clearances (
   valid_until date not null,
   verified_at timestamptz not null default now(),
   verified_by uuid not null references auth.users(id),
-  verification_source text not null default 'Austin ISD authorized confirmation'
+  verification_source text not null default 'Austin ISD independent confirmation'
     check (verification_source = 'Austin ISD authorized confirmation')
 );
 
@@ -70,4 +70,4 @@ with check (status='pending' and admin_notes='' and adult_confirmed=true and
   ));
 
 -- Note: the existing requests table is unchanged; existing requests are preserved.
--- A school-confirmed approval is necessary but not sufficient to start unsupervised activities.
+-- A district-confirmed approval is necessary but not sufficient to start unsupervised activities.
