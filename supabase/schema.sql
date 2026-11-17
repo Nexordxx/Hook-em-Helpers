@@ -20,13 +20,6 @@ $$;
 revoke all on function public.is_admin() from public;
 grant execute on function public.is_admin() to anon, authenticated;
 
-create or replace function public.is_ut_volunteer()
-returns boolean language sql stable set search_path = ''
-as $$
-  select lower(coalesce((select auth.jwt())->>'email','')) ~ '^[a-z0-9._%+\-]+@([a-z0-9-]+\.)*utexas\.edu$';
-$$;
-grant execute on function public.is_ut_volunteer() to authenticated;
-
 create table if not exists public.volunteer_profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   full_name text not null check (length(trim(full_name)) between 2 and 90),
@@ -129,12 +122,12 @@ using (status='approved' or id=(select auth.uid()) or (select public.is_admin())
 
 drop policy if exists volunteer_create on public.volunteer_profiles;
 create policy volunteer_create on public.volunteer_profiles for insert to authenticated
-with check (id=(select auth.uid()) and status='pending' and public.is_ut_volunteer());
+with check (id=(select auth.uid()) and status='pending');
 
 drop policy if exists volunteer_self_edit on public.volunteer_profiles;
 create policy volunteer_self_edit on public.volunteer_profiles for update to authenticated
-using (id=(select auth.uid()) and public.is_ut_volunteer())
-with check (id=(select auth.uid()) and status='pending' and public.is_ut_volunteer());
+using (id=(select auth.uid()))
+with check (id=(select auth.uid()) and status='pending');
 
 drop policy if exists volunteer_admin_edit on public.volunteer_profiles;
 create policy volunteer_admin_edit on public.volunteer_profiles for update to authenticated
@@ -159,11 +152,11 @@ create policy resume_metadata_read on public.volunteer_documents for select to a
 using (user_id=(select auth.uid()) or (select public.is_admin()));
 drop policy if exists resume_metadata_insert on public.volunteer_documents;
 create policy resume_metadata_insert on public.volunteer_documents for insert to authenticated
-with check (user_id=(select auth.uid()) and public.is_ut_volunteer() and resume_path like ((select auth.uid())::text || '/%'));
+with check (user_id=(select auth.uid()) and resume_path like ((select auth.uid())::text || '/%'));
 drop policy if exists resume_metadata_update on public.volunteer_documents;
 create policy resume_metadata_update on public.volunteer_documents for update to authenticated
 using (user_id=(select auth.uid()))
-with check (user_id=(select auth.uid()) and public.is_ut_volunteer() and resume_path like ((select auth.uid())::text || '/%'));
+with check (user_id=(select auth.uid()) and resume_path like ((select auth.uid())::text || '/%'));
 
 drop policy if exists public_settings_read on public.site_settings;
 create policy public_settings_read on public.site_settings for select to anon,authenticated using (true);
@@ -182,7 +175,7 @@ on conflict (id) do update set public=excluded.public,file_size_limit=excluded.f
 
 drop policy if exists own_photo_upload on storage.objects;
 create policy own_photo_upload on storage.objects for insert to authenticated
-with check (bucket_id='mentor-photos' and public.is_ut_volunteer() and (storage.foldername(name))[1] = (select auth.uid())::text);
+with check (bucket_id='mentor-photos' and (storage.foldername(name))[1] = (select auth.uid())::text);
 
 drop policy if exists resume_file_read on storage.objects;
 create policy resume_file_read on storage.objects for select to authenticated
@@ -190,7 +183,7 @@ using (bucket_id='mentor-resumes' and
  ((storage.foldername(name))[1] = (select auth.uid())::text or (select public.is_admin())));
 drop policy if exists own_resume_upload on storage.objects;
 create policy own_resume_upload on storage.objects for insert to authenticated
-with check (bucket_id='mentor-resumes' and public.is_ut_volunteer() and (storage.foldername(name))[1] = (select auth.uid())::text);
+with check (bucket_id='mentor-resumes' and (storage.foldername(name))[1] = (select auth.uid())::text);
 
 -- Admin bootstrap: DO NOT store admin identifiers in website source code.
 -- 1. Create/sign in to an account using the live website.
