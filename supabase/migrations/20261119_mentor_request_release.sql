@@ -4,6 +4,7 @@
 alter table public.mentorship_requests
   add column if not exists mentor_contact_consent boolean not null default false,
   add column if not exists mentor_release_authorized boolean not null default false,
+  add column if not exists mentor_approved_message text not null default '' check (length(mentor_approved_message) <= 1000),
   add column if not exists mentor_released_at timestamptz;
 
 -- Preserve all existing status values, adding one explicit release state.
@@ -16,7 +17,7 @@ alter table public.mentorship_requests
 alter table public.mentorship_requests
   add constraint mentor_release_requires_consent_check
   check (status <> 'approved_for_mentor' or
-    (mentor_contact_consent = true and mentor_release_authorized = true));
+    (mentor_contact_consent = true and mentor_release_authorized = true and length(trim(mentor_approved_message)) >= 15));
 
 -- Protect volunteer-facing status and contact-consent fields from unauthorized updates.
 -- Existing request UPDATE policy is admin-only. Preserve it; do not relax it.
@@ -26,7 +27,7 @@ create or replace function public.guard_mentorship_release()
 returns trigger language plpgsql set search_path = '' as $$
 begin
   if new.status = 'approved_for_mentor' and old.status <> 'approved_for_mentor' then
-    if not (new.mentor_contact_consent and new.mentor_release_authorized) then
+    if not (new.mentor_contact_consent and new.mentor_release_authorized and length(trim(new.mentor_approved_message)) >= 15) then
       raise exception 'Adult sharing consent and administrator release authorization required';
     end if;
     -- The approval state is not proof of district clearance; the administrator
