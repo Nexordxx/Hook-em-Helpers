@@ -1,3 +1,55 @@
+# Primary feature: administrator-approved mentor request release (STAGED)
+
+The user's primary requirement is **emailing the chosen mentor the adult-supplied request information only AFTER explicit administrator approval**.
+
+This feature is **not deployed** and must not be merged until regression-tested. Existing production website is unchanged.
+
+## Behavior
+
+1. Parent/educator submits request, chooses a mentor, and may check an **explicit optional consent** to share the adult's name, email and reviewed request details with that mentor.
+2. Request enters the existing private administrator queue with status `pending`. No mentor notification.
+3. Administrator reviews it, removes any identifying or sensitive student details, types an `Administrator-reviewed message for mentor`, verifies program/school clearance and adult coordination, then selects `Approved — email selected mentor` and saves.
+4. Supabase database enforces the release gate: approved mentor profile, adult sharing consent, administrator release authorization, and an approved message of at least 15 characters.
+5. On that state transition, a server-only webhook calls `mentor-notifications`; the Edge Function re-reads the request under the service role, checks the gate, fetches the mentor's **Supabase Auth** email (never supplied by the requester), sends through Resend, and records delivery status. It shares **adult contact information, grade band, topic, scheduling preferences, and the manually reviewed message**.
+6. It does not email the raw free-text question or private administrator notes. The administrator must redact sensitive details from the approved message.
+7. Existing requests have consent=false, so they **cannot be sent** without new affirmative adult sharing consent. Do not simply set the consent flag; obtain documented consent first via a future secure process or ask the adult to resubmit.
+8. Sending is an asynchronous best-effort attempt, not a guaranteed delivery. Inspect delivery logs. Repeated webhook events do not generate duplicate application sends.
+
+## Release staging instructions
+
+A. Apply both **additive migrations in order** to a nonproduction Supabase project:
+
+- `supabase/migrations/20261119_notification_deliveries.sql`
+- `supabase/migrations/20261119_mentor_request_release.sql`
+
+B. Deploy `supabase/functions/mentor-notifications/index.ts` as `mentor-notifications` using `supabase functions deploy mentor-notifications --no-verify-jwt`. Configure server-side secrets:
+`RESEND_API_KEY`, `NOTIFICATION_FROM_EMAIL=notifications@hookemhelpers.com`, `NOTIFICATION_WEBHOOK_SECRET` (random 32+ characters). Supabase supplies `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in the function environment.
+
+C. In Supabase Database → Webhooks, create `notify_approved_mentor_request` for **UPDATE ONLY** on `public.mentorship_requests`, URL `https://YOUR_PROJECT_REF.supabase.co/functions/v1/mentor-notifications`, and add request header `x-hookem-webhook-secret` set to the exact private webhook secret. This is not a browser key. The function returns 401 to requests lacking this header.
+
+D. Test with two separate fictional identities, an admin and an approved volunteer, and a fictitious adult:
+- A pending request with consent true produces **no mentor email**.
+- Admin setting `reviewing` produces **no mentor email**.
+- Admin setting `approved_for_mentor` with no consent, no reviewed message, or non-approved mentor is rejected.
+- Admin approves valid request → **one mentor email**; verify the adult contact details and reviewed summary, but no raw question or admin notes.
+- Duplicate webhook replay → no second email.
+- Regular volunteer cannot modify approvals or access the private request table.
+- No change to existing administrator login, directory, request submission, résumé upload or volunteer profile approvals.
+- Sending failure is visible in `notification_deliveries` and Edge Function logs; the request remains approved in the database. Resolve failures manually before any resend.
+- Check adult email consent and coordinator-approved supervision procedures. Avoid direct unsupervised contact with minors.
+
+E. **Production release only after tests pass**, with backup, rollback instructions and operator review. Disable the UPDATE webhook to halt emails immediately if needed. Never remove the pre-existing Vercel domain/Supabase redirects during rollout.
+
+### Critical notes
+
+- This is authorization to **share the approved adult contact details**, NOT a certification that a mentor has passed district background screening. Existing approved public profiles are not proof of VOLY clearance.
+- The first phase has no mentor acceptance dashboard; the mentor responds to the adult/coordinator under supervision arrangements.
+- Email is not encrypted end-to-end; do not include minors' identifying details.
+- The webhook must not run until the migration and the function are deployed. UI code references the new database columns.
+- No Supabase or Resend secrets belong in GitHub or client-side environment variables.
+
+---
+
 # Hook’Em Helpers — Notification System (Phase 1, staged)
 
 **Status: code committed to a feature branch; nothing deployed to production.**
